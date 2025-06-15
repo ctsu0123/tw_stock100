@@ -586,5 +586,74 @@ function renderTableWithData(data) {
     renderTable(data);
 }
 
+// 獲取全球主要股市指數
+async function fetchGlobalIndices() {
+    const container = document.getElementById('globalIndices');
+    
+    try {
+        const response = await fetch('http://localhost:3000/api/global-indices');
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error || '無法獲取全球指數數據');
+        }
+        
+        // 創建跑馬燈容器（如果不存在）
+        let ticker = container.querySelector('.ticker');
+        if (!ticker) {
+            container.innerHTML = `
+                <div class="ticker">
+                    <div class="ticker-wrapper">
+                        <ul class="ticker-list"></ul>
+                    </div>
+                </div>
+            `;
+            ticker = container.querySelector('.ticker');
+        }
+        
+        const tickerWrapper = ticker.querySelector('.ticker-wrapper');
+        const tickerList = tickerWrapper.querySelector('.ticker-list');
+        
+        // 清空現有內容
+        tickerList.innerHTML = '';
+        
+        // 創建跑馬燈項目（創建兩份以實現無縫循環）
+        for (let i = 0; i < 2; i++) {
+            result.data.forEach(index => {
+                const isPositive = index.change >= 0;
+                const changeSign = isPositive ? '+' : '';
+                const arrow = isPositive ? '▲' : '▼';
+                
+                const listItem = document.createElement('li');
+                listItem.className = `ticker-item ${isPositive ? 'positive' : 'negative'}`;
+                listItem.innerHTML = `
+                    <span class="ticker-name">${index.name}</span>
+                    <span class="ticker-price">${index.price.toLocaleString()}</span>
+                    <span class="ticker-change">
+                        <span>${changeSign}${index.change} (${changeSign}${index.changePercent}%)</span>
+                        <span class="ticker-arrow">${arrow}</span>
+                    </span>
+                `;
+                
+                tickerList.appendChild(listItem);
+            });
+        }
+        
+        // 每5分鐘更新一次數據
+        setTimeout(fetchGlobalIndices, 5 * 60 * 1000);
+        
+    } catch (error) {
+        console.error('獲取全球指數失敗:', error);
+        container.innerHTML = `
+            <div class="error-message" style="text-align: center; color: #e74c3c; padding: 10px;">
+                ❌ 無法載入全球指數數據，請稍後再試
+            </div>
+        `;
+    }
+}
+
 // 初始化應用程式
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    fetchGlobalIndices(); // 載入全球指數數據
+});

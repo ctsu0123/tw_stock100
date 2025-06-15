@@ -1,7 +1,32 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
+const yahooFinance = require('yahoo-finance2').default;
+
+// 全球主要指數映射
+const INDICES = {
+    // 美國市場
+    '^GSPC': { name: '標普500', symbol: '^GSPC' },
+    '^DJI': { name: '道瓊工業', symbol: '^DJI' },
+    '^IXIC': { name: '納斯達克', symbol: '^IXIC' },
+    '^RUT': { name: '羅素2000', symbol: '^RUT' },
+    '^VIX': { name: '恐慌指數', symbol: '^VIX' },
+    
+    // 亞洲市場
+    '^TWII': { name: '台灣加權', symbol: '^TWII' },
+    '^N225': { name: '日經225', symbol: '^N225' },
+    '^HSI': { name: '恒生指數', symbol: '^HSI' },
+    '000001.SS': { name: '上證指數', symbol: '000001.SS' }
+};
+
+// 緩存設置
+let indicesCache = {
+    data: null,
+    timestamp: 0
+};
+const CACHE_DURATION = 5 * 60 * 1000; // 5分鐘緩存
 
 // 初始化 Express 應用程式
 const app = express();
@@ -120,6 +145,102 @@ async function fetchStockData(dateStr) {
     
     return null;
 }
+
+// 獲取全球主要股市指數
+app.get('/api/global-indices', async (req, res) => {
+    const now = Date.now();
+    
+    // 檢查緩存是否有效
+    if (indicesCache.data && (now - indicesCache.timestamp) < CACHE_DURATION) {
+        return res.json({
+            success: true,
+            data: indicesCache.data,
+            lastUpdated: new Date(indicesCache.timestamp).toISOString(),
+            fromCache: true
+        });
+    }
+    
+    try {
+        // 使用 yahoo-finance2 獲取所有指數的報價
+        const symbols = Object.keys(INDICES);
+        const quotes = await Promise.all(
+            symbols.map(symbol => 
+                yahooFinance.quote(symbol).catch(err => {
+                    console.error(`Error fetching ${symbol}:`, err.message);
+                    return null;
+                })
+            )
+        );
+        
+        // 處理API響應
+        const indices = [];
+        
+        quotes.forEach((quote, index) => {
+            if (!quote) return;
+            
+            const symbol = symbols[index];
+            const indexInfo = INDICES[symbol] || { name: symbol, symbol: symbol };
+            
+            let price = quote.regularMarketPrice || 0;
+            let previousClose = quote.regularMarketPreviousClose || price;
+            let change = price - previousClose;
+            let changePercent = previousClose !== 0 ? (change / previousClose) * 100 : 0;
+            
+            // 格式化數值到小數點後兩位
+            price = parseFloat(price.toFixed(2));
+            change = parseFloat(change.toFixed(2));
+            changePercent = parseFloat(changePercent.toFixed(2));
+            
+            indices.push({
+                name: indexInfo.name,
+                symbol: symbol,
+                price: price,
+                change: change,
+                changePercent: changePercent
+            });
+        });
+        
+        // 按預定義順序排序
+        const sortedIndices = Object.keys(INDICES)
+            .map(symbol => indices.find(index => index.symbol === symbol))
+            .filter(Boolean);
+        
+        // 更新緩存
+        indicesCache = {
+            data: sortedIndices,
+            timestamp: now
+        };
+        
+        res.json({
+            success: true,
+            data: indices,
+            lastUpdated: new Date().toISOString(),
+            fromCache: false
+        });
+        
+    } catch (error) {
+        console.error('獲取全球指數失敗:', error);
+        
+        // 如果緩存中有舊數據，返回緩存數據
+        if (indicesCache.data) {
+            console.log('返回緩存數據');
+            return res.json({
+                success: true,
+                data: indicesCache.data,
+                lastUpdated: new Date(indicesCache.timestamp).toISOString(),
+                fromCache: true,
+                error: '使用緩存數據: ' + error.message
+            });
+        }
+        
+        // 如果沒有緩存數據，返回錯誤
+        res.status(500).json({
+            success: false,
+            error: '無法獲取全球指數數據',
+            details: error.message
+        });
+    }
+});
 
 // 代理端點 - 取得股票資料
 app.get('/api/stock-data', async (req, res) => {
