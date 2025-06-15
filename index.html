@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣股票成交量分析</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 台灣股票成交量分析</h1>
+            <p>即時取得台灣證券交易所成交量前500名股票資訊</p>
+        </div>
+        
+        <div class="controls">
+            <button id="fetchBtn" class="btn btn-primary">🔄 取得股票資料</button>
+            <button id="exportBtn" class="btn btn-success" disabled>📊 匯出Excel</button>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>正在取得股票資料，請稍候...</p>
+        </div>
+        
+        <div id="status" class="status">
+            <div style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 10px;">
+                <strong>🔧 開發說明</strong><br>
+                由於瀏覽器CORS政策限制，程式會優先嘗試取得證交所真實資料，如無法存取則使用示範資料展示功能
+            </div>
+            💡 點擊「取得股票資料」開始分析（優先使用證交所API，備用示範資料）
+        </div>
+        
+        <!-- 篩選表單 -->
+        <div class="filter-container">
+            <h3>股票篩選條件</h3>
+            <div class="filter-form">
+                <div class="filter-group">
+                    <label for="filterType">篩選類型：</label>
+                    <select id="filterType" class="filter-select">
+                        <option value="volume">成交量 (張)</option>
+                        <option value="price">成交價</option>
+                        <option value="change">漲跌幅 (%)</option>
+                        <option value="transaction">成交筆數</option>
+                        <option value="name">股票名稱/代碼</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterCondition">條件：</label>
+                    <select id="filterCondition" class="filter-select">
+                        <option value="greater">大於</option>
+                        <option value="less">小於</option>
+                        <option value="equal">等於</option>
+                        <option value="contains" class="text-only">包含</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterValue">數值：</label>
+                    <input type="text" id="filterValue" class="filter-input" placeholder="輸入數值或文字">
+                </div>
+                
+                <button id="applyFilter" class="btn">
+                    <span class="btn-icon">🔍</span>
+                    <span class="btn-text">套用篩選</span>
+                </button>
+                
+                <button id="resetFilter" class="btn btn-secondary">
+                    <span class="btn-icon">🔄</span>
+                    <span class="btn-text">重設篩選</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table id="stockTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>股票代號</th>
+                        <th>股票名稱</th>
+                        <th>成交張數</th>
+                        <th>成交價格</th>
+                        <th>漲跌</th>
+                        <th>漲跌幅(%)</th>
+                        <th>開盤價</th>
+                        <th>最高價</th>
+                        <th>最低價</th>
+                        <th>昨收價</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
