@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF基金查詢 - 台灣股票成交量分析</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .etf-container {
+            max-width: 100%;
+            overflow-x: auto;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            background: white;
+        }
+        
+        #etfTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        #etfTable th, #etfTable td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        #etfTable th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        #etfTable tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .search-container {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .search-container input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .last-updated {
+            color: #666;
+            font-size: 13px;
+            margin-top: 10px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 ETF基金查詢</h1>
+            <p>查詢台灣證券市場ETF基金資訊</p>
+        </div>
+        
+        <div class="controls">
+            <button id="refreshBtn" class="btn btn-primary">
+                <span class="btn-icon">🔄</span>
+                <span class="btn-text">更新資料</span>
+            </button>
+            <a href="index.html" class="btn btn-secondary">
+                <span class="btn-icon">🏠</span>
+                <span class="btn-text">返回首頁</span>
+            </a>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>正在取得ETF資料，請稍候...</p>
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="輸入ETF代號或名稱搜尋...">
+        </div>
+        
+        <div class="etf-container">
+            <table id="etfTable">
+                <thead>
+                    <tr>
+                        <th>ETF代號</th>
+                        <th>ETF名稱</th>
+                        <th>追蹤標的指數</th>
+                        <th>基金類型</th>
+                        <th>投資經理人</th>
+                    </tr>
+                </thead>
+                <tbody id="etfTableBody">
+                    <!-- ETF資料將在這裡動態生成 -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="last-updated" id="lastUpdated">
+            最後更新時間: 載入中...
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.getElementById('refreshBtn');
+            const searchInput = document.getElementById('searchInput');
+            const etfTableBody = document.getElementById('etfTableBody');
+            const loadingElement = document.getElementById('loading');
+            const statusElement = document.getElementById('status');
+            const lastUpdatedElement = document.getElementById('lastUpdated');
+            
+            let etfData = [];
+            
+            // 載入ETF資料
+            async function loadETFData() {
+                try {
+                    showLoading(true);
+                    const response = await fetch('http://localhost:3000/api/etf-list');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        etfData = result.data;
+                        renderETFTable(etfData);
+                        
+                        // 更新最後更新時間
+                        const lastUpdated = new Date(result.lastUpdated).toLocaleString('zh-TW');
+                        lastUpdatedElement.textContent = `最後更新時間: ${lastUpdated} ${result.fromCache ? '(快取資料)' : ''}`;
+                        
+                        showStatus('資料載入成功', 'success');
+                    } else {
+                        throw new Error(result.message || '無法取得ETF資料');
+                    }
+                } catch (error) {
+                    console.error('載入ETF資料失敗:', error);
+                    showStatus(`載入失敗: ${error.message}`, 'error');
+                } finally {
+                    showLoading(false);
+                }
+            }
+            
+            // 渲染ETF表格
+            function renderETFTable(data) {
+                if (!Array.isArray(data)) {
+                    console.error('無效的資料格式:', data);
+                    return;
+                }
+                
+                etfTableBody.innerHTML = '';
+                
+                if (data.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td colspan="5" style="text-align: center;">沒有找到符合條件的ETF</td>`;
+                    etfTableBody.appendChild(row);
+                    return;
+                }
+                
+                data.forEach(etf => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${etf.code || '-'}</td>
+                        <td>${etf.name || '-'}</td>
+                        <td>${etf.index || '-'}</td>
+                        <td>${etf.type || '-'}</td>
+                        <td>${etf.manager || '-'}</td>
+                    `;
+                    etfTableBody.appendChild(row);
+                });
+            }
+            
+            // 搜尋ETF
+            function searchETF(query) {
+                if (!query.trim()) {
+                    renderETFTable(etfData);
+                    return;
+                }
+                
+                const lowerQuery = query.toLowerCase();
+                const filteredData = etfData.filter(etf => 
+                    (etf.code && etf.code.toLowerCase().includes(lowerQuery)) ||
+                    (etf.name && etf.name.toLowerCase().includes(lowerQuery)) ||
+                    (etf.index && etf.index.toLowerCase().includes(lowerQuery))
+                );
+                
+                renderETFTable(filteredData);
+            }
+            
+            // 顯示/隱藏載入動畫
+            function showLoading(show) {
+                loadingElement.style.display = show ? 'flex' : 'none';
+            }
+            
+            // 顯示狀態訊息
+            function showStatus(message, type = 'info') {
+                statusElement.textContent = message;
+                statusElement.style.display = 'block';
+                statusElement.className = 'status';
+                statusElement.classList.add(type);
+                
+                // 5秒後自動隱藏
+                setTimeout(() => {
+                    statusElement.style.display = 'none';
+                }, 5000);
+            }
+            
+            // 事件監聽
+            refreshBtn.addEventListener('click', loadETFData);
+            searchInput.addEventListener('input', (e) => searchETF(e.target.value));
+            
+            // 初始載入
+            loadETFData();
+        });
+    </script>
+</body>
+</html>

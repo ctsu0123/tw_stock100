@@ -32,6 +32,13 @@ let industryCache = {
     data: null,
     timestamp: 0
 };
+
+// ETF 資料緩存
+let etfCache = {
+    data: null,
+    timestamp: 0
+};
+
 const CACHE_DURATION = 5 * 60 * 1000; // 5分鐘緩存
 
 // 初始化 Express 應用程式
@@ -66,6 +73,37 @@ function formatDate(date) {
     return date.getFullYear() +
            String(date.getMonth() + 1).padStart(2, '0') +
            String(date.getDate()).padStart(2, '0');
+}
+
+// 獲取 ETF 資料
+async function fetchETFData() {
+    try {
+        console.log('開始從證交所獲取 ETF 資料...');
+        const response = await axios.get('https://openapi.twse.com.tw/v1/opendata/t187ap47_L', {
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Language': 'zh-TW',
+                'Cache-Control': 'no-cache'
+            },
+            timeout: 10000
+        });
+        
+        console.log('成功獲取 ETF 資料，共', response.data.length, '筆');
+        
+        // 過濾出需要的欄位
+        const etfList = response.data.map(etf => ({
+            code: etf['基金代號'],
+            name: etf['基金名稱'],
+            index: etf['標的指數|追蹤指數名稱'],
+            type: etf['基金類型'],
+            manager: etf['投資經理人']
+        }));
+        
+        return etfList;
+    } catch (error) {
+        console.error('獲取 ETF 資料失敗:', error.message);
+        throw error;
+    }
 }
 
 // 獲取股票資料
@@ -151,6 +189,46 @@ async function fetchStockData(dateStr) {
     
     return null;
 }
+
+// 獲取 ETF 資料
+app.get('/api/etf-list', async (req, res) => {
+    const now = Date.now();
+    
+    // 檢查緩存是否有效
+    if (etfCache.data && (now - etfCache.timestamp) < CACHE_DURATION) {
+        console.log('從緩存返回 ETF 資料');
+        return res.json({
+            success: true,
+            data: etfCache.data,
+            lastUpdated: new Date(etfCache.timestamp).toISOString(),
+            fromCache: true
+        });
+    }
+    
+    try {
+        const etfData = await fetchETFData();
+        
+        // 更新緩存
+        etfCache = {
+            data: etfData,
+            timestamp: now
+        };
+        
+        res.json({
+            success: true,
+            data: etfData,
+            lastUpdated: new Date(now).toISOString(),
+            fromCache: false
+        });
+    } catch (error) {
+        console.error('獲取 ETF 資料失敗:', error);
+        res.status(500).json({
+            success: false,
+            message: '獲取 ETF 資料失敗',
+            error: error.message
+        });
+    }
+});
 
 // 獲取產業代號對照表
 app.get('/api/industries', async (req, res) => {
