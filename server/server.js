@@ -26,6 +26,12 @@ let indicesCache = {
     data: null,
     timestamp: 0
 };
+
+// 產業代號緩存
+let industryCache = {
+    data: null,
+    timestamp: 0
+};
 const CACHE_DURATION = 5 * 60 * 1000; // 5分鐘緩存
 
 // 初始化 Express 應用程式
@@ -145,6 +151,132 @@ async function fetchStockData(dateStr) {
     
     return null;
 }
+
+// 獲取產業代號對照表
+app.get('/api/industries', async (req, res) => {
+    const now = Date.now();
+    
+    // 檢查緩存是否有效
+    if (industryCache.data && (now - industryCache.timestamp) < CACHE_DURATION) {
+        console.log('從緩存返回產業代號資料');
+        return res.json({
+            success: true,
+            data: industryCache.data,
+            lastUpdated: new Date(industryCache.timestamp).toISOString(),
+            fromCache: true
+        });
+    }
+    
+    try {
+        console.log('開始從證交所獲取產業代號資料...');
+        // 從證交所獲取產業代號資料
+        const response = await axios.get('https://www.twse.com.tw/exchangeReport/MI_INDEX', {
+            headers: {
+                'Accept': 'application/json',
+                'Accept-Language': 'zh-TW',
+                'Cache-Control': 'no-cache'
+            },
+            params: {
+                response: 'json',
+                date: formatDate(new Date()),
+                type: 'ALLBUT0999'
+            },
+            timeout: 10000
+        });
+        
+        console.log('收到證交所回應:', response.status, response.statusText);
+        
+        // 檢查回應格式
+        if (response.data && response.data.data9) {
+            console.log(`成功獲取產業代號資料，共 ${response.data.data9.length} 筆`);
+            
+            // 提取產業代號和名稱
+            const industryMap = new Map();
+            
+            // 處理 data9 陣列，提取產業代號和名稱
+            response.data.data9.forEach(item => {
+                if (item && item.length > 0) {
+                    const industryCode = item[0]; // 產業代號
+                    const industryName = item[1]; // 產業名稱
+                    if (industryCode && industryName) {
+                        industryMap.set(industryCode, industryName);
+                    }
+                }
+            });
+            
+            // 轉換為數組並排序
+            const industryList = Array.from(industryMap.entries()).map(([code, name]) => ({
+                code: code.trim(),
+                name: name.trim()
+            })).sort((a, b) => a.code.localeCompare(b.code));
+            
+            console.log(`提取到 ${industryList.length} 個不重複的產業代號`);
+            
+            // 更新緩存
+            industryCache = {
+                data: industryList,
+                timestamp: now
+            };
+            
+            res.json({
+                success: true,
+                data: industryList,
+                lastUpdated: new Date().toISOString(),
+                fromCache: false
+            });
+        } else {
+            throw new Error('無效的產業代號資料格式');
+        }
+    } catch (error) {
+        console.error('獲取產業代號失敗:', error);
+        
+        // 如果 API 請求失敗，返回示例資料
+        const sampleData = [
+            { code: '01', name: '水泥工業' },
+            { code: '02', name: '食品工業' },
+            { code: '03', name: '塑膠工業' },
+            { code: '04', name: '紡織纖維' },
+            { code: '05', name: '電機機械' },
+            { code: '06', name: '電器電纜' },
+            { code: '21', name: '化學工業' },
+            { code: '22', name: '生技醫療' },
+            { code: '23', name: '玻璃陶瓷' },
+            { code: '24', name: '造紙工業' },
+            { code: '25', name: '鋼鐵工業' },
+            { code: '26', name: '橡膠工業' },
+            { code: '27', name: '汽車工業' },
+            { code: '28', name: '半導體業' },
+            { code: '29', name: '電腦及週邊' },
+            { code: '30', name: '光電業' },
+            { code: '31', name: '通信網路' },
+            { code: '32', name: '電子零組件' },
+            { code: '33', name: '電子通路' },
+            { code: '34', name: '資訊服務' },
+            { code: '35', name: '其他電子' },
+            { code: '36', name: '建材營造' },
+            { code: '37', name: '航運業' },
+            { code: '38', name: '觀光餐旅' },
+            { code: '39', name: '金融保險' },
+            { code: '40', name: '貿易百貨' },
+            { code: '41', name: '油電燃氣' },
+            { code: '42', name: '其他' }
+        ];
+        
+        // 更新緩存
+        industryCache = {
+            data: sampleData,
+            timestamp: now
+        };
+        
+        res.json({
+            success: true,
+            data: sampleData,
+            lastUpdated: new Date().toISOString(),
+            fromCache: false,
+            isSampleData: true
+        });
+    }
+});
 
 // 獲取全球主要股市指數
 app.get('/api/global-indices', async (req, res) => {

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>產業代號查詢 - 台灣股票成交量分析</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .search-box {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        #searchInput {
+            padding: 8px 15px;
+            width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .btn {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-back {
+            background-color: #6c757d;
+            margin-bottom: 20px;
+        }
+        .btn-back:hover {
+            background-color: #5a6268;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+            text-align: center;
+        }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 產業代號查詢</h1>
+            <p>台灣證券交易所產業代號與名稱對照表</p>
+        </div>
+        
+        <button id="backBtn" class="btn btn-back">← 返回首頁</button>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="輸入產業代號或名稱進行搜尋...">
+            <button id="searchBtn" class="btn">搜尋</button>
+        </div>
+        
+        <div id="status" class="status">
+            點擊「載入產業代號」按鈕開始查詢
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>正在載入產業代號資料，請稍候...</p>
+        </div>
+        
+        <div id="tableContainer" style="overflow-x: auto;">
+            <table id="industriesTable">
+                <thead>
+                    <tr>
+                        <th>產業代號</th>
+                        <th>產業名稱</th>
+                    </tr>
+                </thead>
+                <tbody id="industriesTableBody">
+                    <!-- 產業代號資料將在這裡動態載入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 返回按鈕
+            document.getElementById('backBtn').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+            
+            // 搜尋按鈕
+            document.getElementById('searchBtn').addEventListener('click', filterIndustries);
+            
+            // 輸入框按 Enter 鍵觸發搜尋
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    filterIndustries();
+                }
+            });
+            
+            // 載入產業代號
+            loadIndustries();
+        });
+        
+        // 載入產業代號資料
+        async function loadIndustries() {
+            const loadingElement = document.getElementById('loading');
+            const statusElement = document.getElementById('status');
+            const tableBody = document.getElementById('industriesTableBody');
+            
+            try {
+                loadingElement.style.display = 'flex';
+                statusElement.textContent = '正在載入產業代號資料...';
+                
+                // 使用完整的 URL 指向本地伺服器
+                const response = await fetch('http://localhost:3000/api/industries');
+                const result = await response.json();
+                
+                if (result.success && Array.isArray(result.data)) {
+                    // 儲存完整資料供搜尋使用
+                    window.industriesData = result.data;
+                    
+                    // 渲染表格
+                    renderIndustriesTable(result.data);
+                    
+                    statusElement.textContent = `已載入 ${result.data.length} 筆產業代號資料`;
+                    if (result.fromCache) {
+                        statusElement.textContent += ' (快取資料)';
+                    }
+                } else {
+                    throw new Error(result.error || '無法取得產業代號資料');
+                }
+            } catch (error) {
+                console.error('載入產業代號失敗:', error);
+                statusElement.textContent = `載入失敗: ${error.message}`;
+                statusElement.style.backgroundColor = '#f8d7da';
+                statusElement.style.color = '#721c24';
+            } finally {
+                loadingElement.style.display = 'none';
+            }
+        }
+        
+        // 渲染產業代號表格
+        function renderIndustriesTable(industries) {
+            const tableBody = document.getElementById('industriesTableBody');
+            tableBody.innerHTML = ''; // 清空現有內容
+            
+            if (!industries || industries.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = '<td colspan="2" style="text-align: center;">沒有找到符合條件的產業代號</td>';
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            industries.forEach(industry => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${industry.code}</td>
+                    <td>${industry.name}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 篩選產業代號
+        function filterIndustries() {
+            const searchInput = document.getElementById('searchInput').value.trim().toLowerCase();
+            const statusElement = document.getElementById('status');
+            
+            if (!window.industriesData || window.industriesData.length === 0) {
+                statusElement.textContent = '請先載入產業代號資料';
+                return;
+            }
+            
+            if (!searchInput) {
+                // 如果搜尋框為空，顯示所有資料
+                renderIndustriesTable(window.industriesData);
+                statusElement.textContent = `顯示全部 ${window.industriesData.length} 筆產業代號`;
+                return;
+            }
+            
+            // 篩選符合條件的產業代號
+            const filteredIndustries = window.industriesData.filter(industry => 
+                industry.code.toLowerCase().includes(searchInput) || 
+                industry.name.toLowerCase().includes(searchInput)
+            );
+            
+            // 渲染篩選結果
+            renderIndustriesTable(filteredIndustries);
+            statusElement.textContent = `找到 ${filteredIndustries.length} 筆符合「${searchInput}」的產業代號`;
+        }
+    </script>
+</body>
+</html>

@@ -51,11 +51,15 @@ body {
     padding: 10px 15px;
     border-radius: 4px;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
     font-size: 14px;
     transition: all 0.2s ease;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
 }
 
 .btn:hover {
@@ -94,6 +98,26 @@ body {
 .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+    box-shadow: 0 4px 15px rgba(56, 161, 105, 0.3);
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(56, 161, 105, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #00b5d8 0%, #0987a0 100%);
+    box-shadow: 0 4px 15px rgba(0, 181, 216, 0.3);
+}
+
+.btn-info:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 181, 216, 0.4);
 }
 
 /* 全球指數樣式 */
@@ -327,6 +351,14 @@ body {
 #resetFilter:hover {
     background: #edf2f7;
     border-color: #cbd5e0;
+}
+
+#industrySearch {
+    background: #4a90e2;
+}
+
+#industrySearch:hover {
+    background: #357abd;
 }
 
 .table-container {
