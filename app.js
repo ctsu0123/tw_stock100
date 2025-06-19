@@ -373,7 +373,7 @@ function renderTable(data) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td class="rank">${stock.rank}</td>
-            <td>${stock.code}</td>
+            <td><a href="stock-detail.html?id=${stock.code}" class="stock-code-link">${stock.code}</a></td>
             <td>${stock.name}</td>
             <td class="volume">${formatVolume(stock.volume)}</td>
             <td>$${stock.price.toFixed(2)}</td>
