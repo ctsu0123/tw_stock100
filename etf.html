@@ -217,12 +217,35 @@
                 }, 5000);
             }
             
+            // 從 URL 參數獲取搜尋關鍵字
+            function getSearchQueryFromURL() {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get('q') || '';
+            }
+
+            // 執行搜尋
+            function performSearch() {
+                const query = getSearchQueryFromURL();
+                if (query) {
+                    searchInput.value = query;
+                    searchETF(query);
+                }
+            }
+
             // 事件監聽
-            refreshBtn.addEventListener('click', loadETFData);
+            refreshBtn.addEventListener('click', () => {
+                loadETFData();
+                // 重新執行搜尋以確保結果是最新的
+                setTimeout(performSearch, 100);
+            });
+            
             searchInput.addEventListener('input', (e) => searchETF(e.target.value));
             
             // 初始載入
-            loadETFData();
+            loadETFData().then(() => {
+                // 資料載入完成後執行搜尋
+                performSearch();
+            });
         });
     </script>
 </body>
