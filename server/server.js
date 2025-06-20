@@ -159,50 +159,56 @@ async function fetchStockFinance(stockId) {
             return stockFinanceCache[stockId].data;
         }
 
-        // 使用證交所個股即時資訊
-        const response = await axios.get('https://mis.twse.com.tw/stock/api/getStockInfo.jsp', {
-            params: {
-                ex_ch: `tse_${stockId}.tw`
-            },
+        // 1. 先取得即時交易資訊
+        const stockInfoResponse = await axios.get('https://mis.twse.com.tw/stock/api/getStockInfo.jsp', {
+            params: { ex_ch: `tse_${stockId}.tw` },
             timeout: 10000
         });
-        
-        let stockInfo = null;
-        if (response.data.msgArray && response.data.msgArray.length > 0) {
-            stockInfo = response.data.msgArray[0];
-        } else {
-            // 如果沒有資料，使用隨機數模擬
-            const randomBase = parseInt(stockId) % 100; // 使用股票代碼作為隨機種子
-            return {
-                dividendYield: ((randomBase % 5) + 1).toFixed(2) + '%',
-                peRatio: ((randomBase % 30) + 5).toFixed(2),
-                pbRatio: ((randomBase % 5) + 0.5).toFixed(2),
-                fiscalYearQuarter: `${new Date().getFullYear() - 1911}Q${Math.floor(new Date().getMonth() / 3) + 1}`,
-                tradeVolume: 'N/A',
-                tradeValue: 'N/A',
-                openingPrice: 'N/A',
-                highestPrice: 'N/A',
-                lowestPrice: 'N/A',
-                closingPrice: 'N/A',
-                change: 'N/A',
-                transaction: 'N/A',
-                lastPrice: 'N/A',
-                changePercent: 'N/A',
-                highPrice: 'N/A',
-                lowPrice: 'N/A',
-                volume: 'N/A',
-                totalVolume: 'N/A',
-                openPrice: 'N/A',
-                yesterdayPrice: 'N/A'
-            };
+
+        // 2. 取得財務指標資料 (殖利率、本益比、股價淨值比)
+        const financeResponse = await axios.get('https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_d', {
+            params: { response: 'json', stockNo: stockId },
+            timeout: 10000
+        });
+
+        // 處理即時交易資訊
+        let stockInfo = {};
+        if (stockInfoResponse.data.msgArray && stockInfoResponse.data.msgArray.length > 0) {
+            stockInfo = stockInfoResponse.data.msgArray[0];
+        }
+
+        // 處理財務指標資料
+        let financeData = {};
+        if (financeResponse.data && Array.isArray(financeResponse.data)) {
+            // 根據股票代號過濾資料
+            const stockFinance = financeResponse.data.find(item => item.Code === stockId);
+            
+            if (stockFinance) {
+                financeData = {
+                    dividendYield: stockFinance.DividendYield || 'N/A',
+                    peRatio: stockFinance.PEratio || 'N/A',
+                    pbRatio: stockFinance.PBratio || 'N/A',
+                    fiscalYear: stockFinance.DividendYear || 'N/A',
+                    fiscalQuarter: stockFinance.FiscalYearQuarter ? 
+                        stockFinance.FiscalYearQuarter.split('Q')[1] : 'N/A',
+                    fiscalYearQuarter: stockFinance.FiscalYearQuarter || 'N/A'
+                };
+            } else {
+                console.warn(`找不到股票代號 ${stockId} 的財務資料`);
+            }
         }
         
         // 格式化資料
         const formattedData = {
-            dividendYield: stockInfo.y || ((parseInt(stockId) % 5) + 1).toFixed(2) + '%',
-            peRatio: stockInfo.pe || ((parseInt(stockId) % 30) + 5).toFixed(2),
-            pbRatio: stockInfo.b || ((parseInt(stockId) % 5) + 0.5).toFixed(2),
-            fiscalYearQuarter: `${new Date().getFullYear() - 1911}Q${Math.floor(new Date().getMonth() / 3) + 1}`,
+            // 財務指標
+            dividendYield: financeData.dividendYield || 'N/A',
+            peRatio: financeData.peRatio || 'N/A',
+            pbRatio: financeData.pbRatio || 'N/A',
+            fiscalYear: financeData.fiscalYear || 'N/A',
+            fiscalQuarter: financeData.fiscalQuarter || 'N/A',
+            fiscalYearQuarter: financeData.fiscalYearQuarter || 'N/A',
+            
+            // 即時交易資訊
             tradeVolume: stockInfo.v || 'N/A',
             tradeValue: stockInfo.f || 'N/A',
             openingPrice: stockInfo.o || 'N/A',
@@ -235,6 +241,8 @@ async function fetchStockFinance(stockId) {
             dividendYield: 'N/A',
             peRatio: 'N/A',
             pbRatio: 'N/A',
+            fiscalYear: 'N/A',
+            fiscalQuarter: 'N/A',
             fiscalYearQuarter: 'N/A',
             tradeVolume: 'N/A',
             tradeValue: 'N/A',
@@ -243,7 +251,15 @@ async function fetchStockFinance(stockId) {
             lowestPrice: 'N/A',
             closingPrice: 'N/A',
             change: 'N/A',
-            transaction: 'N/A'
+            transaction: 'N/A',
+            lastPrice: 'N/A',
+            changePercent: 'N/A',
+            highPrice: 'N/A',
+            lowPrice: 'N/A',
+            volume: 'N/A',
+            totalVolume: 'N/A',
+            openPrice: 'N/A',
+            yesterdayPrice: 'N/A'
         };
     }
 }
@@ -252,32 +268,9 @@ async function fetchStockFinance(stockId) {
 async function fetchStockData(dateStr) {
     console.log(`嘗試取得 ${dateStr} 的股票資料`);
     
-    // 嘗試使用 MI_INDEX API
+    // 使用 STOCK_DAY_ALL API 取得資料
     try {
-        const response = await axios.get(
-            `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${dateStr}&type=ALL`,
-            { 
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            }
-        );
-        
-        if (response.data.stat === 'OK' && response.data.data9) {
-            console.log(`成功從 MI_INDEX 取得 ${dateStr} 的股票資料，共 ${response.data.data9.length} 筆`);
-            return {
-                data: response.data,
-                isHistoricalData: false
-            };
-        }
-    } catch (error) {
-        console.warn(`MI_INDEX API 請求失敗:`, error.message);
-    }
-    
-    // 如果 MI_INDEX 失敗，嘗試使用 STOCK_DAY_ALL
-    try {
-        console.log('嘗試使用 STOCK_DAY_ALL API 取得資料...');
+        console.log('使用 STOCK_DAY_ALL API 取得資料...');
         const response = await axios.get(
             'https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL',
             {

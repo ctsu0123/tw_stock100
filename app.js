@@ -95,14 +95,14 @@ async function fetchRealStockData() {
         let processedData = [];
         
         // 檢查資料格式並進行相應處理
-        if (result.data.data9) {
-            // MI_INDEX 格式
-            console.log('處理 MI_INDEX 格式的資料，筆數:', result.data.data9.length);
-            processedData = processTWSEData(result.data.data9);
-        } else if (result.data.data && Array.isArray(result.data.data)) {
+        if (result.data.data && Array.isArray(result.data.data)) {
             // STOCK_DAY_ALL 格式
             console.log('處理 STOCK_DAY_ALL 格式的資料，筆數:', result.data.data.length);
             processedData = processStockDayAllData(result.data.data);
+        } else if (result.data.data9) {
+            // 舊版資料格式（已棄用）
+            console.log('處理舊版資料格式，筆數:', result.data.data9.length);
+            processedData = processTWSEData(result.data.data9);
         } else {
             // 嘗試直接處理資料（可能是已經處理過的格式）
             console.log('嘗試直接處理資料...');
@@ -162,16 +162,17 @@ function showDemoWarning() {
     elements.status.insertAdjacentElement('afterend', demoWarning);
 }
 
-// 處理證交所 MI_INDEX 格式資料
+// 處理舊版資料格式（已棄用）
+// 保留此函數以維持向後相容性
 function processTWSEData(data) {
     if (!data || !Array.isArray(data)) {
-        console.error('無效的 MI_INDEX 資料格式:', data);
+        console.error('無效的資料格式:', data);
         return [];
     }
     
-    console.log('開始處理 MI_INDEX 資料，原始資料筆數:', data.length);
+    console.log('開始處理舊版資料，原始資料筆數:', data.length);
     
-    // 在 MI_INDEX 格式中，交易筆數可能在 item[3] 或 item[4] 位置，視實際資料結構調整
+    // 在舊版資料格式中，交易筆數可能在 item[3] 或 item[4] 位置
     // 這裡假設交易筆數在 item[3]
     const TRANSACTION_INDEX = 3;
     
